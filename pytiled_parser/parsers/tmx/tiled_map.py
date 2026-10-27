@@ -110,9 +110,13 @@ def parse(file: Path, encoding: str) -> TiledMap:
 
                     if not already_loaded:
                         print("here")
-                        highest_firstgid = max(map_.tilesets.keys())
-                        last_tileset_count = map_.tilesets[highest_firstgid].tile_count
-                        new_firstgid = highest_firstgid + last_tileset_count
+                        new_firstgid = 1
+                        if map_.tilesets:
+                            highest_firstgid = max(map_.tilesets.keys())
+                            last_tileset_count = map_.tilesets[
+                                highest_firstgid
+                            ].tile_count
+                            new_firstgid = highest_firstgid + last_tileset_count
                         map_.tilesets[new_firstgid] = parse_tmx_tileset(
                             tiled_object.new_tileset,
                             new_firstgid,
