@@ -12,9 +12,10 @@ from pytiled_parser import parse_map
 TEMPLATE_DATA = Path(__file__).parent / "test_data" / "map_tests" / "template"
 
 
+@pytest.mark.parametrize("group_depth", [0, 1, 3])
 @pytest.mark.parametrize("format_", ["json", "tmx"])
 @pytest.mark.parametrize("with_map_tilesets", [False, True])
-def test_template_tileset_allocation(tmp_path, format_, with_map_tilesets):
+def test_template_tileset_allocation(tmp_path, format_, with_map_tilesets, group_depth):
     source = TEMPLATE_DATA / ("map." + format_)
     destination = tmp_path / source.name
     if format_ == "json":
@@ -30,6 +31,20 @@ def test_template_tileset_allocation(tmp_path, format_, with_map_tilesets):
         objects[-1]["id"] = 8
         for object_ in objects:
             object_["template"] = str((TEMPLATE_DATA / object_["template"]).resolve())
+        for depth in range(group_depth):
+            document["layers"] = [
+                {
+                    "id": 3 + depth,
+                    "name": "group",
+                    "type": "group",
+                    "opacity": 1,
+                    "visible": True,
+                    "x": 0,
+                    "y": 0,
+                    "layers": document["layers"],
+                }
+            ]
+        document["nextlayerid"] = 3 + group_depth
         destination.write_text(json.dumps(document))
     else:
         document = etree.parse(source)
@@ -49,10 +64,20 @@ def test_template_tileset_allocation(tmp_path, format_, with_map_tilesets):
             object_.set(
                 "template", str((TEMPLATE_DATA / object_.get("template")).resolve())
             )
+        document.getroot().remove(layer)
+        for depth in range(group_depth):
+            group = etree.Element("group", id=str(3 + depth), name="group")
+            group.append(layer)
+            layer = group
+        document.getroot().append(layer)
+        document.getroot().set("nextlayerid", str(3 + group_depth))
         document.write(destination, encoding="utf-8")
 
     parsed = parse_map(destination)
-    objects = parsed.layers[0].tiled_objects
+    layer = parsed.layers[0]
+    for _ in range(group_depth):
+        layer = layer.layers[0]
+    objects = layer.tiled_objects
     expected_gids = [49, 50, 49] if with_map_tilesets else [1, 2, 1]
     assert [object_.gid for object_ in objects[1:]] == expected_gids
     assert sorted(parsed.tilesets) == ([1, 49, 50] if with_map_tilesets else [1, 2])
